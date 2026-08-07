@@ -65,7 +65,7 @@ class GeminiReviewer:
             "inline_comments": inline_comments
         }
 
-    def _generate_summary_walkthrough(self, pr_meta: Dict[str, Any], file_diffs: List[Any], full_patch: str) -> str:
+    def _generate_summary_walkthrough(self, pr_meta: Dict[str, Any], file_diffs: List[Any], full_patch: str, related_prs: List[Dict[str, Any]] = None) -> str:
         prompt = f"""
 You are CodeRabbit AI, an expert autonomous AI Senior Staff Engineer & Code Reviewer.
 Review the following Pull Request details and unified diff to generate a concise, high-signal executive PR walkthrough.
@@ -108,7 +108,7 @@ Return ONLY the markdown text.
         res = self._call_gemini_api(prompt)
         if res:
             return res
-        return self._generate_fallback_summary(pr_meta, file_diffs)
+        return self._generate_fallback_summary(pr_meta, file_diffs, related_prs=related_prs)
 
     def _generate_inline_comments(self, pr_meta: Dict[str, Any], file_diffs: List[Any]) -> List[Dict[str, Any]]:
         """
@@ -529,5 +529,5 @@ This Pull Request updates **{len(file_diffs)} files** across the codebase. Key i
             "inline_comments": inline_comments
         }
 
-    def _generate_fallback_summary(self, pr_meta: Dict[str, Any], file_diffs: List[Any]) -> str:
-        return self._generate_simulated_review(pr_meta, file_diffs)["summary"]
+    def _generate_fallback_summary(self, pr_meta: Dict[str, Any], file_diffs: List[Any], related_prs: List[Dict[str, Any]] = None) -> str:
+        return self._generate_simulated_review(pr_meta, file_diffs, related_prs=related_prs)["summary"]
