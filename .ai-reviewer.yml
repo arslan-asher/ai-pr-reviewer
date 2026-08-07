@@ -1,0 +1,86 @@
+# AI Code Reviewer Configuration (CodeRabbit AI Alternative)
+# https://github.com/your-username/github-pr-reviewer
+
+version: "1.0"
+
+# General Review Settings
+review:
+  # Enable automated line-by-line code review with 1-click suggestions
+  line_by_line: true
+  
+  # Enable high-level PR walkthrough & summary
+  pr_summary: true
+  
+  # Auto-generate Mermaid sequence / architecture diagrams for PR flows
+  sequence_diagram: true
+  
+  # Pre-merge safety, security, and quality checklist
+  pre_merge_checklist: true
+  
+  # Generate 1-click committable GitHub suggestions (```suggestion)
+  committable_suggestions: true
+  
+  # Severity filter: 'info', 'warning', 'critical'
+  # 'warning' will filter out trivial nitpicks and focus on real issues
+  min_severity: "warning"
+
+  # Bot identity & trigger tag
+  bot_name: "ai-reviewer"
+  
+  # Maximum inline review comments per PR (to prevent notification spam)
+  max_comments: 15
+
+# Path and File Exclusions (Unified diffs matching these patterns are skipped)
+path_filters:
+  exclude:
+    - "**/*.lock"
+    - "**/package-lock.json"
+    - "**/yarn.lock"
+    - "**/pnpm-lock.yaml"
+    - "**/poetry.lock"
+    - "**/Cargo.lock"
+    - "**/dist/**"
+    - "**/build/**"
+    - "**/.next/**"
+    - "**/*.min.js"
+    - "**/*.min.css"
+    - "**/*.svg"
+    - "**/*.png"
+    - "**/*.jpg"
+    - "**/*.ico"
+    - "**/node_modules/**"
+    - "**/vendor/**"
+    - "**/.git/**"
+
+# Custom Domain & Architecture Guidelines
+# Customize these rules to match your team's engineering standards
+guidelines:
+  security:
+    - "Flag any hardcoded credentials, JWT secrets, or sensitive tokens."
+    - "Verify SQL queries use parameterized statements to prevent SQL Injection."
+    - "Ensure user inputs rendered in HTML/React are sanitized against XSS."
+    - "Check authorization and tenant boundaries on multi-tenant data routes."
+  
+  performance:
+    - "Identify nested O(N^2) loops or unindexed DB lookups inside request loops."
+    - "Flag missing pagination on unbounded database queries."
+    - "Warn on unmemoized heavy computations in React rendering paths."
+
+  clean_code:
+    - "Ensure proper error handling with meaningful status codes (e.g. 404 for not found vs 400 for bad input)."
+    - "Verify parameter validation on public function signatures."
+    - "Ensure functions follow DRY (Don't Repeat Yourself) principles."
+
+# Interactive Chat & Bot Triggers
+chat:
+  enabled: true
+  commands:
+    - trigger: "@ai-reviewer review"
+      action: "full_review"
+      description: "Re-runs complete line-by-line review on the latest commits"
+    - trigger: "@ai-reviewer summarize"
+      action: "summary_only"
+      description: "Regenerates high-level PR summary and sequence diagram"
+    - trigger: "@ai-reviewer explain"
+      action: "explain"
+      description: "Answers questions about code logic, architecture, or edge cases"

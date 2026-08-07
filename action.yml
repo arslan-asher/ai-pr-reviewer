@@ -1,0 +1,44 @@
+name: 'AI Code Reviewer & PR Walkthrough'
+description: 'Autonomous AI PR review assistant delivering line-by-line feedback with 1-click fixes, PR walkthroughs, pre-merge safety checks, and interactive chat.'
+author: 'DeepMind / AI Reviewer Team'
+branding:
+  icon: 'check-circle'
+  color: 'orange'
+
+inputs:
+  gemini_api_key:
+    description: 'Google Gemini Free API Key (get from aistudio.google.com)'
+    required: true
+  github_token:
+    description: 'GitHub Token for posting PR comments (defaults to secrets.GITHUB_TOKEN)'
+    required: true
+    default: ${{ github.token }}
+  config_path:
+    description: 'Path to custom configuration YAML'
+    required: false
+    default: '.ai-reviewer.yml'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: 📦 Install Dependencies
+      shell: bash
+      run: |
+        pip install google-generativeai requests pyyaml
+
+    - name: 🚀 Run AI Review
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
+        GITHUB_EVENT_PATH: ${{ github.event_path }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_EVENT_NAME: ${{ github.event_name }}
+        REVIEWER_CONFIG_PATH: ${{ inputs.config_path }}
+      run: |
+        python ${{ github.action_path }}/agent/review_engine.py

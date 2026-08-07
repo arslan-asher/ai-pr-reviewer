@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐇 AI PR Reviewer - CodeRabbit AI Native Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --border-color: #30363d;
+      --border-subtle: #21262d;
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --text-accent: #58a6ff;
+      --diff-add-bg: #033a16;
+      --diff-add-text: #3fb950;
+      --diff-del-bg: #490202;
+      --diff-del-text: #f85149;
+      --accent-orange: #ff7700;
+      --accent-green: #238636;
+      --accent-purple: #a371f7;
+      --font-mono: 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding-bottom: 60px;
+    }
+
+    /* Top Navigation */
+    header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .brand-logo {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #ff6b00, #ff9e00);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      box-shadow: 0 4px 12px rgba(255, 107, 0, 0.3);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+    }
+    .badge-open { background: #23863622; color: #3fb950; border-color: #238636; }
+    .badge-free { background: #58a6ff22; color: #58a6ff; border-color: #388bfd; }
+
+    /* Main Container */
+    .container {
+      max-width: 1100px;
+      margin: 24px auto;
+      padding: 0 20px;
+    }
+
+    /* PR Header Banner */
+    .pr-header {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 24px;
+    }
+    .pr-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .pr-meta {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    /* Controls & Presets */
+    .control-panel {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      background: var(--bg-tertiary);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .btn:hover { background: #30363d; border-color: #8b949e; }
+    .btn-primary { background: var(--accent-green); border-color: #2ea043; }
+    .btn-primary:hover { background: #2ea043; }
+    .btn-commit {
+      background: #238636;
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-top: 10px;
+    }
+    .btn-commit:hover { background: #2ea043; }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+      gap: 8px;
+    }
+    .tab {
+      padding: 10px 16px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+    }
+    .tab.active {
+      color: var(--text-main);
+      border-bottom-color: var(--accent-orange);
+    }
+
+    /* PR Summary & Walkthrough Card */
+    .summary-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .summary-card h3 {
+      font-size: 1.15rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .table-container {
+      overflow-x: auto;
+      margin: 16px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      text-align: left;
+    }
+    th { background: var(--bg-tertiary); color: var(--text-muted); }
+
+    .checklist {
+      list-style: none;
+      margin: 14px 0;
+    }
+    .checklist li {
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Diff Review Card (Exact CodeRabbit Style from Screenshots) */
+    .diff-review-wrapper {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .diff-file-header {
+      background: var(--bg-tertiary);
+      padding: 10px 16px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--text-accent);
+    }
+    .diff-code-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      background: #0d1117;
+    }
+    .diff-row td {
+      border: none;
+      padding: 2px 8px;
+      vertical-align: top;
+      white-space: pre-wrap;
+    }
+    .line-num {
+      width: 45px;
+      text-align: right;
+      color: #484f58;
+      user-select: none;
+    }
+    .line-add { background: var(--diff-add-bg); color: #e6edf3; }
+    .line-del { background: var(--diff-del-bg); color: #e6edf3; }
+    .diff-prefix { width: 15px; text-align: center; color: var(--text-muted); user-select: none; }
+
+    /* Inline CodeRabbit Comment Box */
+    .inline-comment-box {
+      border-top: 1px solid var(--border-color);
+      padding: 16px;
+      background: var(--bg-secondary);
+    }
+    .comment-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      font-size: 0.88rem;
+    }
+    .bot-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #ff7700, #ffaa00);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+    }
+    .bot-name { font-weight: 700; color: #fff; }
+    .bot-tag {
+      background: #30363d;
+      color: #8b949e;
+      font-size: 0.7rem;
+      padding: 1px 6px;
+      border-radius: 10px;
+      border: 1px solid #484f58;
+    }
+    .comment-time { color: var(--text-muted); font-size: 0.8rem; }
+    .comment-body {
+      font-size: 0.92rem;
+      color: #c9d1d9;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .comment-body code {
+      background: rgba(110,118,129,0.4);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+    }
+
+    /* Committable Suggestion Block */
+    .suggestion-container {
+      background: #0d1117;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      overflow: hidden;
+      margin: 12px 0;
+    }
+    .suggestion-header {
+      background: var(--bg-tertiary);
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+    .suggestion-diff {
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+    }
+    .sug-del { background: var(--diff-del-bg); color: var(--diff-del-text); padding: 2px 4px; border-radius: 3px; display: block; }
+    .sug-add { background: var(--diff-add-bg); color: var(--diff-add-text); padding: 2px 4px; border-radius: 3px; display: block; margin-top: 2px; }
+
+    details {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    details summary {
+      cursor: pointer;
+      color: #58a6ff;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    /* Interactive PR Chat */
+    .chat-box {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    .chat-input-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .chat-input {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: #fff;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+    }
+    .chat-input:focus { outline: none; border-color: #58a6ff; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">🐇</div>
+      <div>GitHub Native AI PR Reviewer <span style="font-weight:400; color:var(--text-muted); font-size:0.85rem;">(CodeRabbit Alternative)</span></div>
+    </div>
+    <div class="nav-actions">
+      <span class="badge badge-free">⚡ 100% Free Serverless</span>
+      <span class="badge badge-open">🟢 GitHub Actions Ready</span>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- PR Header -->
+    <div class="pr-header">
+      <div class="pr-title">
+        <span class="badge badge-open">Open</span>
+        <span>feat(routes): enhance error handling & load balancing validation #42</span>
+      </div>
+      <div class="pr-meta">
+        <span>👤 Author: <b>sambuilds</b></span>
+        <span>🌿 Branch: <code>feature/task-guid-routing</code> -> <code>main</code></span>
+        <span>📅 Trigger: <code>pull_request (opened)</code></span>
+        <span>⚡ Runner: <b>GitHub Actions (ubuntu-latest)</b></span>
+      </div>
+    </div>
+
+    <!-- Control Presets -->
+    <div class="control-panel">
+      <span style="font-weight:600; font-size:0.85rem; color:var(--text-muted);">Switch Example Diff:</span>
+      <button class="btn" onclick="loadPreset(1)">📁 Example 1: find_task.py (400 vs 404 Status Code)</button>
+      <button class="btn" onclick="loadPreset(2)">📁 Example 2: __init__.py (loadbalancing validation)</button>
+      <button class="btn" onclick="loadPreset(3)">📁 Example 3: doc.rs / Prisma Typo (Role.SPONSOR)</button>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs">
+      <div class="tab active" id="tab-reviews" onclick="switchTab('reviews')">🔍 Line-by-Line Reviews & 1-Click Suggestions</div>
+      <div class="tab" id="tab-summary" onclick="switchTab('summary')">📋 PR Walkthrough & Mermaid Diagram</div>
+      <div class="tab" id="tab-setup" onclick="switchTab('setup')">⚡ Free GitHub Actions Setup Guide</div>
+    </div>
+
+    <!-- TAB 1: Line-by-Line Review & 1-Click Committable Suggestion (Matches User's Screenshots!) -->
+    <div id="view-reviews">
+      
+      <div id="diff-card-container">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Developer Reply Thread Simulation -->
+      <div class="diff-review-wrapper" style="border-top: none; margin-top: -14px; border-top-left-radius: 0; border-top-right-radius: 0; background:#0d1117;">
+        <div style="padding: 12px 16px; display: flex; align-items: center; gap: 10px; font-size: 0.88rem;">
+          <div style="width: 24px; height: 24px; border-radius: 50%; background: #388bfd; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;">👨‍💻</div>
+          <div><b>sambuilds</b> <span style="color:var(--text-muted); font-size:0.8rem;">Contributor • Author</span>: <i>"Great catch! Just fixed it."</i></div>
+        </div>
+      </div>
+
+      <!-- Interactive PR Chat -->
+      <div class="chat-box">
+        <h4 style="font-size:0.95rem; margin-bottom:6px;">💬 Interactive PR Chat (Replies to @ai-reviewer)</h4>
+        <p style="color:var(--text-muted); font-size:0.85rem;">Tag <code>@ai-reviewer explain [question]</code> or <code>@ai-reviewer review</code> to interact with the bot directly on GitHub:</p>
+        <div id="chat-history" style="margin: 12px 0;"></div>
+        <div class="chat-input-row">
+          <input type="text" id="chat-input" class="chat-input" placeholder="Ask @ai-reviewer a question (e.g. '@ai-reviewer explain why 404 is better than 400')...">
+          <button class="btn btn-primary" onclick="sendChat()">Send Query</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: PR Walkthrough & Mermaid Diagram -->
+    <div id="view-summary" style="display:none;">
+      <div class="summary-card">
+        <h3>🐇 PR Summary & Walkthrough</h3>
+        <p style="color:var(--text-main); margin-bottom:14px;">
+          This Pull Request introduces helper methods for retrieving task models by GUID with centralized error handling, adds load balancing parameter propagation, and fixes type enum inconsistencies.
+        </p>
+
+        <h4>📋 Changes Breakdown</h4>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Component / File</th>
+                <th>Changes</th>
+                <th>Risk Rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>tasks-workflow/src/routes/find_task.py</code></td>
+                <td>Added <code>_get_task_model_from_guid_or_raise</code> encapsulation</td>
+                <td><span style="color:#3fb950;">🟢 Low</span></td>
+              </tr>
+              <tr>
+                <td><code>pyphare/pyphare/pharein/__init__.py</code></td>
+                <td>Added <code>simulation/AMR/loadbalancing</code> parameter injection</td>
+                <td><span style="color:#e3b341;">🟡 Medium</span></td>
+              </tr>
+              <tr>
+                <td><code>create/napi/sec/doc.rs</code></td>
+                <td>Imported Prisma <code>Role, Status</code> schema models</td>
+                <td><span style="color:#3fb950;">🟢 Low</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 style="margin-top:20px;">🗺️ Component Interaction Sequence Diagram</h4>
+        <div style="background:#0d1117; padding:16px; border-radius:8px; border:1px solid var(--border-color); margin:12px 0;">
+          <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Dev as Client / Frontend
+    participant Route as Task Router (find_task.py)
+    participant Model as TaskModel ORM
+    participant Sim as AMR Simulation Engine
+    
+    Dev->>Route: GET /tasks/{guid}
+    Route->>Model: filter_by(guid=task_guid, process_instance_id)
+    alt Task Not Found
+        Model-->>Route: None
+        Route-->>Dev: 404 Not Found (Standardized ApiError)
+    else Task Exists
+        Model-->>Route: TaskModel Instance
+        Route->>Sim: apply_loadbalancing(type)
+        Sim-->>Dev: 200 OK
+    end
+          </pre>
+        </div>
+
+        <h4 style="margin-top:20px;">🛡️ Pre-Merge Safety & Quality Checklist</h4>
+        <ul class="checklist">
+          <li>✅ <b>Security Audit:</b> No hardcoded secrets, raw SQL queries, or authorization boundary bypasses.</li>
+          <li>✅ <b>Performance:</b> No nested $O(N^2)$ loops or unindexed DB scans detected.</li>
+          <li>⚠️ <b>Error Handling:</b> Corrected error status code to standard HTTP 404 for missing resource.</li>
+          <li>⚠️ <b>Input Validation:</b> Ensure <code>loadbalancing</code> parameter is checked against supported types.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- TAB 3: Setup Guide -->
+    <div id="view-setup" style="display:none;">
+      <div class="summary-card">
+        <h3>⚡ 2-Minute Setup for Your GitHub Repository (100% Free)</h3>
+        <p style="color:var(--text-muted); margin-bottom:16px;">Follow these 3 easy steps to enable CodeRabbit-style reviews on any GitHub repository:</p>
+
+        <div style="background:#0d1117; border:1px solid var(--border-color); border-radius:8px; padding:16px; margin-bottom:16px;">
+          <h4 style="color:#58a6ff; margin-bottom:8px;">Step 1: Get a Free Gemini API Key</h4>
+          <p style="font-size:0.88rem;">Visit <a href="https://aistudio.google.com" target="_blank" style="color:#58a6ff;">Google AI Studio (aistudio.google.com)</a> and generate a free API key (15 requests/min & 1M tokens/min free tier).</p>
+        </div>
+
+        <div style="background:#0d1117; border:1px solid var(--border-color); border-radius:8px; padding:16px; margin-bottom:16px;">
+          <h4 style="color:#58a6ff; margin-bottom:8px;">Step 2: Add Secret to GitHub Repo</h4>
+          <p style="font-size:0.88rem;">In your GitHub repo, go to <b>Settings -> Secrets and variables -> Actions</b>, click <b>New repository secret</b>:</p>
+          <ul style="margin: 8px 0 8px 20px; font-size:0.85rem; color:var(--text-muted);">
+            <li>Name: <code>GEMINI_API_KEY</code></li>
+            <li>Value: <i>(your Gemini API key)</i></li>
+          </ul>
+        </div>
+
+        <div style="background:#0d1117; border:1px solid var(--border-color); border-radius:8px; padding:16px;">
+          <h4 style="color:#58a6ff; margin-bottom:8px;">Step 3: Copy <code>.github/workflows/ai-code-review.yml</code></h4>
+          <p style="font-size:0.88rem; margin-bottom:10px;">Commit the workflow file to your repo. Every Pull Request will now receive automatic line-by-line reviews and 1-click fixes!</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+
+    const presets = {
+      1: {
+        file: "tasks-workflow/src/routes/find_task.py",
+        diffLines: [
+          { oldN: 580, newN: 580, type: "add", prefix: "+", code: "def _get_task_model_from_guid_or_raise(task_guid: str, process_instance_id: int) -> TaskModel:" },
+          { oldN: 581, newN: 581, type: "add", prefix: "+", code: "    task_model: TaskModel | None = TaskModel.query.filter_by(guid=task_guid, process_instance_id=process_instance_id).first()" },
+          { oldN: 582, newN: 582, type: "add", prefix: "+", code: "    if task_model is None:" },
+          { oldN: 583, newN: 583, type: "add", prefix: "+", code: "        raise ApiError(" },
+          { oldN: 584, newN: 584, type: "add", prefix: "+", code: "            error_code=\"task_not_found\"," },
+          { oldN: 585, newN: 585, type: "add", prefix: "+", code: "            message=f\"Cannot find a task with guid '{task_guid}' for process instance '{process_instance_id}'\"," },
+          { oldN: 586, newN: 586, type: "add", prefix: "+", code: "            status_code=400," },
+          { oldN: 587, newN: 587, type: "add", prefix: "+", code: "        )" },
+          { oldN: 588, newN: 588, type: "add", prefix: "+", code: "    return task_model" }
+        ],
+        comment: {
+          bot: "coderabbitai",
+          time: "1 min ago",
+          body: "The function <code>_get_task_model_from_guid_or_raise</code> is a good addition for encapsulating the logic of retrieving a task model by GUID and raising an error if not found. This centralizes error handling and makes the code more DRY. However, ensure that the status code <code>400</code> is appropriate for all use cases where this function is called, as a <code>404</code> might be more suitable for not found errors.",
+          sugDel: "        status_code=400,",
+          sugAdd: "        status_code=404,",
+          analysis: "Resource retrieval helpers should adhere to RFC 7231 standards. Returning 400 Bad Request indicates malformed syntax, whereas 404 Not Found explicitly denotes missing entity instances."
+        }
+      },
+      2: {
+        file: "pyphare/pyphare/pharein/__init__.py",
+        diffLines: [
+          { oldN: 174, newN: 174, type: "ctx", prefix: " ", code: "def add_vector_int(path, val):" },
+          { oldN: 175, newN: 175, type: "ctx", prefix: " ", code: "    add_int(\"simulation/AMR/tag_buffer\", simulation.tag_buffer)" },
+          { oldN: 176, newN: 176, type: "ctx", prefix: " ", code: "" },
+          { oldN: 177, newN: 177, type: "add", prefix: "+", code: "    add_string(\"simulation/AMR/loadbalancing\", simulation.loadbalancing)" }
+        ],
+        comment: {
+          bot: "coderabbitai",
+          time: "Jan 16 • edited",
+          body: "The addition of the <code>loadbalancing</code> parameter is not validated against expected values. It is important to ensure that the parameter is one of the supported types to prevent runtime errors or unexpected behavior.",
+          sugDel: "    add_string(\"simulation/AMR/loadbalancing\", simulation.loadbalancing)",
+          sugAdd: "    # Validation for loadbalancing\n    if simulation.loadbalancing not in [\"supported_type1\", \"supported_type2\"]:\n        raise ValueError(\"Invalid value for loadbalancing\")\n    add_string(\"simulation/AMR/loadbalancing\", simulation.loadbalancing)",
+          analysis: "Unchecked string arguments passed directly into low-level simulation buffers can cause silent crashes or undefined behavior in AMR routines."
+        }
+      },
+      3: {
+        file: "create/napi/sec/doc.rs",
+        diffLines: [
+          { oldN: 2, newN: 2, type: "ctx", prefix: " ", code: "import type { GetServerSidePropsContext, NextPage } from \"next\";" },
+          { oldN: 3, newN: 3, type: "ctx", prefix: " ", code: "import { getServerAuthSession } from \"../server/common/get-server-auth-session\";" },
+          { oldN: 4, newN: 4, type: "ctx", prefix: " ", code: "import Head from \"next/head\";" },
+          { oldN: 5, newN: 5, type: "ctx", prefix: " ", code: "import Link from \"next/link\";" },
+          { oldN: 6, newN: 6, type: "add", prefix: "+", code: "import { Role, Status } from \"@prisma/client\";" }
+        ],
+        comment: {
+          bot: "CodeRabbit",
+          time: "Yesterday",
+          body: "• There is a typo on the usage of <code>Role.SPONSER</code> found in <code>sponsors.ts</code> - this should be corrected to <code>Role.SPONSOR</code>.<br>• A comment in the code <code>// Replace with the correct status</code> in <code>application.ts</code> suggests there may be a placeholder that needs to be addressed.<br><br>Based on these findings, here are the issues that need to be addressed:<br>• Correct the typo from <code>Role.SPONSER</code> to <code>Role.SPONSOR</code> in <code>sponsors.ts</code>.<br>• Review the comment <code>// Replace with the correct status</code> in <code>application.ts</code> to ensure the correct status is being used.",
+          sugDel: "    const userRole = Role.SPONSER;",
+          sugAdd: "    const userRole = Role.SPONSOR;",
+          analysis: "TypeScript enum mismatch. 'Role.SPONSER' will trigger compile-time error TS2339 property does not exist on type 'typeof Role'."
+        }
+      }
+    };
+
+    function loadPreset(id) {
+      const data = presets[id];
+      const container = document.getElementById("diff-card-container");
+
+      let diffRowsHtml = "";
+      data.diffLines.forEach(l => {
+        const cls = l.type === 'add' ? 'line-add' : (l.type === 'del' ? 'line-del' : '');
+        diffRowsHtml += `
+          <tr class="diff-row ${cls}">
+            <td class="line-num">${l.oldN || ''}</td>
+            <td class="line-num">${l.newN || ''}</td>
+            <td class="diff-prefix">${l.prefix}</td>
+            <td>${escapeHtml(l.code)}</td>
+          </tr>
+        `;
+      });
+
+      container.innerHTML = `
+        <div class="diff-review-wrapper">
+          <div class="diff-file-header">
+            <span>📄 ${data.file}</span>
+            <span style="color:var(--text-muted); font-size:0.75rem;">Comment on lines +${data.diffLines[0].newN} to +${data.diffLines[data.diffLines.length - 1].newN}</span>
+          </div>
+          <table class="diff-code-table">
+            <tbody>
+              ${diffRowsHtml}
+            </tbody>
+          </table>
+
+          <div class="inline-comment-box">
+            <div class="comment-header">
+              <div class="bot-avatar">🐇</div>
+              <span class="bot-name">${data.comment.bot}</span>
+              <span class="bot-tag">bot</span>
+              <span class="comment-time">${data.comment.time}</span>
+            </div>
+
+            <div class="comment-body">
+              ${data.comment.body}
+            </div>
+
+            <div class="suggestion-container">
+              <div class="suggestion-header">
+                <span>▶ Committable suggestion (1-Click Apply)</span>
+                <span>GitHub Diff</span>
+              </div>
+              <div class="suggestion-diff">
+                <span class="sug-del">- ${escapeHtml(data.comment.sugDel)}</span>
+                <span class="sug-add">+ ${escapeHtml(data.comment.sugAdd)}</span>
+              </div>
+            </div>
+
+            <button class="btn-commit" onclick="simulateCommitSuggestion(this)">
+              ✔ Commit suggestion
+            </button>
+
+            <details>
+              <summary><b>🗂️ Analysis Chain</b></summary>
+              <p style="padding-top:4px;">${data.comment.analysis}</p>
+            </details>
+          </div>
+        </div>
+      `;
+    }
+
+    function simulateCommitSuggestion(btn) {
+      btn.innerText = "Applied! Creating commit...";
+      btn.style.background = "#58a6ff";
+      setTimeout(() => {
+        btn.innerText = "✅ Committed in PR #42!";
+        btn.style.background = "#238636";
+        btn.disabled = true;
+      }, 700);
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('view-reviews').style.display = 'none';
+      document.getElementById('view-summary').style.display = 'none';
+      document.getElementById('view-setup').style.display = 'none';
+
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('view-' + tab).style.display = 'block';
+    }
+
+    function sendChat() {
+      const input = document.getElementById("chat-input");
+      const val = input.value.trim();
+      if (!val) return;
+
+      const history = document.getElementById("chat-history");
+      history.innerHTML += `
+        <div style="background:#21262d; border-radius:6px; padding:8px 12px; margin-bottom:8px; font-size:0.88rem;">
+          <b>You:</b> ${escapeHtml(val)}
+        </div>
+      `;
+      input.value = "";
+
+      setTimeout(() => {
+        let reply = "I analyzed your query: Status code 404 is recommended because the resource being requested by GUID is not found in the database. 400 indicates client malformed syntax, whereas 404 accurately communicates resource absence to API consumers.";
+        history.innerHTML += `
+          <div style="background:#033a1622; border:1px solid #238636; border-radius:6px; padding:10px 14px; margin-bottom:8px; font-size:0.88rem;">
+            <b>🐇 @ai-reviewer (bot):</b> ${reply}
+          </div>
+        `;
+        history.scrollTop = history.scrollHeight;
+      }, 500);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Initialize with preset 1
+    loadPreset(1);
+  </script>
+</body>
+</html>
