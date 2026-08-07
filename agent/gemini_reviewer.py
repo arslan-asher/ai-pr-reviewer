@@ -368,10 +368,17 @@ import { Role, Status } from "@prisma/client";
         perf_check = "- [x] **Performance**: No nested $O(N^2)$ loops or unindexed lookups identified in changed paths."
         clean_check = "- [x] **Clean Code**: Adheres to DRY design and single responsibility principles."
 
+        # Build Code Suggestions block
+        suggestions_block = ""
+        if inline_comments:
+            suggestions_block = "\n---\n\n### 🛠️ Actionable Code Suggestions\n\n"
+            for c in inline_comments:
+                suggestions_block += f"#### 📍 `{c['path']}` (Line {c['line']})\n\n{c['body']}\n\n"
+
         summary = f"""<!-- coderabbit-ai: pr-walkthrough -->
 ## 🐇 Summary & Walkthrough
 
-This Pull Request updates **{len(file_diffs)} files** across the codebase. Key improvements focus on input validation, error handling consistency, and architecture modularity.
+This Pull Request updates **{len(file_diffs)} files** across the codebase. Key improvements focus on input validation, error handling consistency, and security audits.
 
 ### 📋 Changes Walkthrough
 
@@ -391,7 +398,7 @@ This Pull Request updates **{len(file_diffs)} files** across the codebase. Key i
 {perf_check}
 {error_check}
 {clean_check}
-
+{suggestions_block}
 ---
 
 ### 📊 Risk Assessment: {risk_rating}
