@@ -292,171 +292,165 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
                         # 3. Chained Dictionary / Null Pointer Crash
                         if "['customer']['address']" in content or "['address']['city']" in content or ".profile.address" in content:
                             has_perf_issue = True
+                            body_text = (
+                                "### 🛡️ Reliability suggestion\n\n"
+                                "**Missing null-safety guard on nested dictionary access**\n\n"
+                                "Directly indexing `order['customer']['address']['city']` without validation will raise a runtime `KeyError` or `TypeError` if customer metadata is missing or null.\n\n"
+                                "```suggestion\n"
+                                "        city = order.get('customer', {}).get('address', {}).get('city', 'Unknown')\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Deep nested dictionary traversal on external payload.\n"
+                                "- Risk: Unhandled runtime exception crashing request batch.\n"
+                                "- Remediation: Use safe chained `.get()` lookups with defaults.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""### 🛡️ Reliability suggestion
-
-**Missing null-safety guard on nested dictionary access**
-
-Directly indexing `order['customer']['address']['city']` without validation will raise a runtime `KeyError` or `TypeError` if customer metadata is missing or null.
-
-```suggestion
-        city = order.get('customer', {}).get('address', {}).get('city', 'Unknown')
-```
-
-<details>
-<summary>▶ 🧩 Analysis chain</summary>
-
-- Deep nested dictionary traversal on external payload.
-- Risk: Unhandled runtime exception crashing request batch.
-- Remediation: Use safe chained `.get()` lookups with defaults.
-</details>"""
+                                "body": body_text
                             })
 
                         # 4. Divide by Zero Risk
                         if "/ currency_rate" in content or "/ rate" in content:
+                            body_text = (
+                                "### ⚡ Reliability & Edge Case\n\n"
+                                "**ZeroDivisionError risk on unvalidated denominator**\n\n"
+                                "The parameter `currency_rate` is used directly as a divisor. If a caller passes `0` or `0.0`, this will trigger a critical `ZeroDivisionError`.\n\n"
+                                "```suggestion\n"
+                                "    adjusted_ratio = 100 / currency_rate if currency_rate and currency_rate != 0 else 0\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Unvalidated numeric divisor in arithmetic expression.\n"
+                                "- Remediation: Guard against zero values before division.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""### ⚡ Reliability & Edge Case
-
-**ZeroDivisionError risk on unvalidated denominator**
-
-The parameter `currency_rate` is used directly as a divisor. If a caller passes `0` or `0.0`, this will trigger a critical `ZeroDivisionError`.
-
-```suggestion
-    adjusted_ratio = 100 / currency_rate if currency_rate and currency_rate != 0 else 0
-```
-
-<details>
-<summary>▶ 🧩 Analysis chain</summary>
-
-- Unvalidated numeric divisor in arithmetic expression.
-- Remediation: Guard against zero values before division.
-</details>"""
+                                "body": body_text
                             })
 
                         # 5. Duplicate Tax Logic (Clean Code / DRY)
                         if "* 0.15" in content and "total_tax" in content:
+                            body_text = (
+                                "### 🧹 Clean Code suggestion\n\n"
+                                "**Extract magic number and deduplicate tax calculation**\n\n"
+                                "The tax multiplier `0.15` is duplicated across multiple statements. Extracting this into a named constant improves readability and makes future rate updates maintainable.\n\n"
+                                "```suggestion\n"
+                                "    TAX_RATE = 0.15\n"
+                                "    total_tax_domestic = sum(o.get('amount', 0) * TAX_RATE for o in orders if o.get('region') == 'US')\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Duplicate numeric literal in multiple list comprehensions.\n"
+                                "- Remediation: Define top-level constant `TAX_RATE`.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""### 🧹 Clean Code suggestion
-
-**Extract magic number and deduplicate tax calculation**
-
-The tax multiplier `0.15` is duplicated across multiple statements. Extracting this into a named constant improves readability and makes future rate updates maintainable.
-
-```suggestion
-    TAX_RATE = 0.15
-    total_tax_domestic = sum(o.get('amount', 0) * TAX_RATE for o in orders if o.get('region') == 'US')
-```
-
-<details>
-<summary>▶ 🧩 Analysis chain</summary>
-
-- Duplicate numeric literal in multiple list comprehensions.
-- Remediation: Define top-level constant `TAX_RATE`.
-</details>"""
+                                "body": body_text
                             })
 
                         # 6. HTTP Status Code / Exception Handling
                         if "raise Exception" in content and ("500" in content or "400" in content):
                             has_status_code_issue = True
+                            body_text = (
+                                "### ⚠️ Error Handling suggestion\n\n"
+                                "**Incorrect HTTP 500 status code for client validation error**\n\n"
+                                "Raising a generic `500 Internal Server Error` indicates an unexpected server crash. Client input errors (such as negative order amounts) should return `400 Bad Request` or `422 Unprocessable Entity`.\n\n"
+                                "```suggestion\n"
+                                "        if order.get('amount', 0) < 0:\n"
+                                "            raise ValueError('Order amount cannot be negative')  # Handled as 400 Bad Request\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Status code 500 mapped to user input validation failure.\n"
+                                "- Remediation: Use specific exception type mapped to HTTP 400.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""### ⚠️ Error Handling suggestion
-
-**Incorrect HTTP 500 status code for client validation error**
-
-Raising a generic `500 Internal Server Error` indicates an unexpected server crash. Client input errors (such as negative order amounts) should return `400 Bad Request` or `422 Unprocessable Entity`.
-
-```suggestion
-        if order.get('amount', 0) < 0:
-            raise ValueError("Order amount cannot be negative")  # Handled as 400 Bad Request
-```
-
-<details>
-<summary>▶ 🧩 Analysis chain</summary>
-
-- Status code 500 mapped to user input validation failure.
-- Remediation: Use specific exception type mapped to HTTP 400.
-</details>"""
+                                "body": body_text
                             })
 
                         # 7. HTTP Status Code 400 vs 404
                         if "status_code=400" in content or "status_code = 400" in content:
                             has_status_code_issue = True
+                            body_text = (
+                                "### 🛠️ Refactor suggestion\n\n"
+                                "**Status code correction: 400 -> 404**\n\n"
+                                "The function encapsulation is a clean addition for retrieving records by identifier. However, ensure that `status_code=400` is updated to `404`, as 404 is standard for not found errors.\n\n"
+                                "```suggestion\n"
+                                "        status_code=404,\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Resource lookup helper raises `ApiError`.\n"
+                                "- Missing entity returns Bad Request (`400`) instead of Not Found (`404`).\n"
+                                "- Recommended fix updates error code to adhere to REST specifications.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""### 🛠️ Refactor suggestion
-
-**Status code correction: 400 -> 404**
-
-The function encapsulation is a clean addition for retrieving records by identifier. However, ensure that `status_code=400` is updated to `404`, as 404 is standard for not found errors.
-
-```suggestion
-        status_code=404,
-```
-
-<details>
-<summary>▶ 🧩 Analysis chain</summary>
-
-- Resource lookup helper raises `ApiError`.
-- Missing entity returns Bad Request (`400`) instead of Not Found (`404`).
-- Recommended fix updates error code to adhere to REST specifications.
-</details>"""
+                                "body": body_text
                             })
 
-                        # 4. Load Balancing Unvalidated Parameters
+                        # 8. Load Balancing Unvalidated Parameters
                         if "loadbalancing" in content and "add_string" in content:
                             has_loadbalance_issue = True
+                            body_text = (
+                                "### 🛠️ Refactor suggestion\n\n"
+                                "**Unvalidated load balancing parameter**\n\n"
+                                "The addition of the `loadbalancing` parameter is not validated against expected values. Ensure the parameter is one of the supported types to prevent runtime errors.\n\n"
+                                "```suggestion\n"
+                                "    # Validation for loadbalancing parameter\n"
+                                "    if simulation.loadbalancing not in ['round_robin', 'least_conn', 'ip_hash']:\n"
+                                "        raise ValueError(f'Invalid value for loadbalancing: {simulation.loadbalancing}')\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- New configuration field `loadbalancing` injected into simulation state.\n"
+                                "- Unvalidated string input could propagate into downstream modules.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""The addition of the `loadbalancing` parameter is not validated against expected values. Ensure the parameter is one of the supported types to prevent runtime errors.
-
-```suggestion
-    # Validation for loadbalancing parameter
-    if simulation.loadbalancing not in ["round_robin", "least_conn", "ip_hash"]:
-        raise ValueError(f"Invalid value for loadbalancing: {simulation.loadbalancing}")
-```
-
-<details>
-<summary><b>🗂️ Analysis Chain</b></summary>
-
-- New configuration field `loadbalancing` injected into simulation state.
-- Unvalidated string input could propagate into downstream modules.
-</details>"""
+                                "body": body_text
                             })
 
-                        # 5. Typo in Enum or Token
+                        # 9. Typo in Enum or Token
                         if "SPONSER" in content:
                             has_typo = True
+                            body_text = (
+                                "### 🛠️ Refactor suggestion\n\n"
+                                "**Typo in enum token: Role.SPONSER -> Role.SPONSOR**\n\n"
+                                "There is a typo on the usage of `Role.SPONSER`. This should be corrected to `Role.SPONSOR`.\n\n"
+                                "```suggestion\n"
+                                "import { Role, Status } from '@prisma/client';\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Typo identified in enum token `SPONSER` -> `SPONSOR`.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""There is a typo on the usage of `Role.SPONSER`. This should be corrected to `Role.SPONSOR`.
-
-```suggestion
-import { Role, Status } from "@prisma/client";
-```
-
-<details>
-<summary><b>🗂️ Analysis Chain</b></summary>
-
-- Typo identified in enum token `SPONSER` -> `SPONSOR`.
-</details>"""
+                                "body": body_text
                             })
 
         # Compute dynamic risk score and safety checklist
