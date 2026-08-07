@@ -72,9 +72,16 @@ class GitHubClient:
     def post_pr_review(self, pull_number: int, summary_body: str, inline_comments: List[Dict[str, Any]], commit_id: str = None) -> Dict[str, Any]:
         """
         Creates a formal Pull Request Review containing:
-        1. High-level Summary body (Walkthrough, Safety checklist, Mermaid diagram)
+        1. High-level Summary body (Walkthrough & Pre-merge safety checklist)
         2. Array of inline review comments attached to precise files, lines, and 1-click suggestions.
         """
+        if not commit_id:
+            try:
+                pr = self.get_pr(pull_number)
+                commit_id = pr.get("head", {}).get("sha")
+            except Exception:
+                pass
+
         url = f"{self.base_url}/repos/{self.repository}/pulls/{pull_number}/reviews"
         
         # Filter and validate comments

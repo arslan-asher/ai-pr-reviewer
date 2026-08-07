@@ -68,7 +68,7 @@ class GeminiReviewer:
     def _generate_summary_walkthrough(self, pr_meta: Dict[str, Any], file_diffs: List[Any], full_patch: str) -> str:
         prompt = f"""
 You are CodeRabbit AI, an expert autonomous AI Senior Staff Engineer & Code Reviewer.
-Review the following Pull Request details and unified diff to generate a comprehensive, executive PR walkthrough.
+Review the following Pull Request details and unified diff to generate a concise, high-signal executive PR walkthrough.
 
 ## PR METADATA:
 Title: {pr_meta.get('title', 'Pull Request')}
@@ -84,26 +84,23 @@ Changed Files: {len(file_diffs)}
 {full_patch[:30000]}
 ```
 
-Generate the response in strict GitHub Flavored Markdown adhering to the following structure:
+Generate the response in strict GitHub Flavored Markdown adhering to the following structure (DO NOT include any Mermaid or sequence diagrams):
 
 1. **🐇 Summary & Walkthrough**:
    - A concise 2-sentence executive summary of the changes.
    - A structured markdown table summarizing changed files:
      | File | Summary | Risk |
 
-2. **🗺️ Sequence / Architecture Diagram**:
-   - Provide a clean, valid Mermaid diagram (````mermaid ... ````) illustrating the flow of data or component interaction introduced in this PR.
-
-3. **🛡️ Pre-Merge Safety & Quality Checklist**:
+2. **🛡️ Pre-Merge Safety & Quality Checklist**:
    - [ ] Security (OWASP, injections, secret leaks, auth)
    - [ ] Performance (No O(N^2) loops, query optimization)
    - [ ] Error Handling (Explicit status codes, proper exceptions)
    - [ ] Test & Edge Case Coverage
 
-4. **📊 Risk Assessment**:
+3. **📊 Risk Assessment**:
    - Provide an overall risk score (🟢 Low, 🟡 Medium, 🟠 High, or 🔴 Critical) with 1 sentence justification.
 
-5. **💬 Interactive Commands**:
+4. **💬 Interactive Commands**:
    - Mention: *"💡 Tip: Reply to any comment or tag `@ai-reviewer review` to ask questions or trigger updates."*
 
 Return ONLY the markdown text.
@@ -143,24 +140,36 @@ You are CodeRabbit AI, an expert Senior Staff Software Engineer reviewing change
 ```
 
 Review the added/modified lines for:
-1. Logic bugs, edge cases, incorrect status codes (e.g. 400 vs 404 for not found).
-2. Missing parameter validation, type mismatches, or typos (e.g. Role.SPONSER vs Role.SPONSOR).
-3. Security vulnerabilities (SQLi, XSS, unescaped queries, secret exposure).
-4. Performance issues (nested loops, N+1 lookups, memory leaks).
+1. Logic bugs, edge cases, and incorrect status codes (e.g. 400 vs 404 for not found).
+2. Null pointer exceptions, missing guards, and parameter validation.
+3. Security vulnerabilities (SQLi, hardcoded tokens, secret exposure).
+4. Performance issues (nested loops, N+1 queries).
 
 CRITICAL INSTRUCTIONS:
 - You must ONLY comment on lines that exist in the new side of the diff.
-- Whenever a code fix can be provided, generate a GitHub committable suggestion block:
+- Format each comment body cleanly to match CodeRabbit AI style:
+  - Header: `### 🛠️ Refactor suggestion` or `### 🔴 Security vulnerability` or `### 💡 Suggestion`
+  - Bold summary: `**<Short Issue Summary>**`
+  - Senior-engineer explanation referencing code symbols in backticks (`like_this`).
+  - Committable suggestion block:
 ```suggestion
 exact replacement code here
 ```
-- Provide a collapsible `<details><summary><b>🗂️ Analysis Chain</b></summary>...</details>` section detailing the reasoning.
+  - Collapsible analysis details:
+<details>
+<summary>▶ 🧩 Analysis chain</summary>
+
+- Observation 1
+- Root cause & impact
+- Recommended remediation
+</details>
+
 - Format the response as a JSON array of objects with the following schema:
 [
   {{
     "path": "{file_diff.filename}",
     "line": <NEW_SIDE_LINE_NUMBER_AS_INTEGER>,
-    "body": "<Markdown comment content including explanation, committable suggestion, and analysis chain>"
+    "body": "<Markdown comment string>"
   }}
 ]
 
@@ -374,28 +383,6 @@ This Pull Request updates **{len(file_diffs)} files** across the codebase. Key i
             summary += f"| `{f.filename}` | Added `{f.added_lines_count}` lines, deleted `{f.deleted_lines_count}` lines | {file_risk} |\n"
 
         summary += f"""
----
-
-### 🗺️ Architecture & Flow Diagram
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Client as API Client / Frontend
-    participant Route as Route Handler / Auth
-    participant DB as Database / Model
-    
-    Client->>Route: Authenticate / Request (User Credentials)
-    Route->>DB: Query User (Parameterized Query)
-    alt User Credentials Invalid / Not Found
-        DB-->>Route: None
-        Route-->>Client: 401 Unauthorized / 404 Not Found
-    else User Valid
-        DB-->>Route: User Record
-        Route-->>Client: 200 OK + Auth Token
-    end
-```
-
 ---
 
 ### 🛡️ Pre-Merge Safety & Quality Checklist
