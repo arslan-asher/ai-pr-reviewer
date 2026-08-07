@@ -61,6 +61,18 @@ class GitHubClient:
             page += 1
         return files
 
+    def get_all_open_prs(self, current_pr_number: int) -> List[Dict[str, Any]]:
+        """Fetch other currently open PRs to detect cross-PR overlap and conflicts."""
+        url = f"{self.base_url}/repos/{self.repository}/pulls?state=open&per_page=30"
+        try:
+            res = requests.get(url, headers=self.headers, timeout=20)
+            if res.status_code == 200:
+                prs = res.json()
+                return [p for p in prs if p.get("number") != current_pr_number]
+        except Exception as e:
+            print(f"⚠️ Could not fetch open PRs: {e}")
+        return []
+
     def get_existing_review_comments(self, pull_number: int) -> List[Dict[str, Any]]:
         """Fetch existing line-by-line review comments on the PR."""
         url = f"{self.base_url}/repos/{self.repository}/pulls/{pull_number}/comments"

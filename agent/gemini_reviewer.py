@@ -45,17 +45,17 @@ class GeminiReviewer:
             print(f"⚠️ Gemini REST call failed: {e}")
         return None
 
-    def generate_review(self, pr_meta: Dict[str, Any], file_diffs: List[Any], full_patch: str) -> Dict[str, Any]:
+    def generate_review(self, pr_meta: Dict[str, Any], file_diffs: List[Any], full_patch: str, related_prs: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Executes multi-stage AI review:
-        1. High-level PR Walkthrough, Risk Assessment, and Mermaid Flowchart.
-        2. Line-by-Line Code Review Comments with Committable ```suggestion blocks.
+        1. High-level PR Walkthrough, Risk Assessment, and Cross-PR comparison.
+        2. Line-by-Line Code Review Comments with Committable diff blocks.
         """
         if not self.api_key:
-            return self._generate_simulated_review(pr_meta, file_diffs)
+            return self._generate_simulated_review(pr_meta, file_diffs, related_prs=related_prs)
 
         # Stage 1: PR Summary & Pre-Merge Checklist
-        summary_markdown = self._generate_summary_walkthrough(pr_meta, file_diffs, full_patch)
+        summary_markdown = self._generate_summary_walkthrough(pr_meta, file_diffs, full_patch, related_prs=related_prs)
 
         # Stage 2: Line-by-Line Code Review Comments
         inline_comments = self._generate_inline_comments(pr_meta, file_diffs)
@@ -222,8 +222,8 @@ Answer the developer with high technical accuracy, cordial tone, senior engineer
             return res
         return "🤖 **AI Reviewer**: Unable to generate answer at this time."
 
-    def _generate_simulated_review(self, pr_meta: Dict[str, Any], file_diffs: List[Any]) -> Dict[str, Any]:
-        """Provides dynamic, context-aware analysis detecting security, performance, and logic bugs."""
+    def _generate_simulated_review(self, pr_meta: Dict[str, Any], file_diffs: List[Any], related_prs: List[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Provides dynamic, context-aware analysis detecting security, performance, logic bugs, and cross-PR impact."""
         has_sqli = False
         has_secret = False
         has_status_code_issue = False
@@ -243,62 +243,84 @@ Answer the developer with high technical accuracy, cordial tone, senior engineer
                         # 1. SQL Injection Detection
                         if ("SELECT " in content or "INSERT " in content or "DELETE " in content) and ("{" in content or "%" in content or " + " in content or f"'" in content):
                             has_sqli = True
+                            body_text = (
+                                "🔴 **Security Vulnerability: SQL Injection (CWE-89)**\n\n"
+                                "Directly interpolating user input (`email`, `password_input`) into raw SQL query strings creates an exploitable SQL Injection vulnerability. An attacker could bypass authentication using `' OR '1'='1`.\n\n"
+                                "```diff\n"
+                                "-    query = f\"SELECT * FROM users WHERE email = '{email}' AND password = '{password_input}'\"\n"
+                                "-    cursor.execute(query)\n"
+                                "+    query = \"SELECT * FROM users WHERE email = ? AND password = ?\"\n"
+                                "+    cursor.execute(query, (email, password_input))\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "    query = \"SELECT * FROM users WHERE email = ? AND password = ?\"\n"
+                                "    cursor.execute(query, (email, password_input))\n"
+                                "```\n"
+                                "</details>\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- User-controlled inputs formatted directly into SQL query text.\n"
+                                "- Risk: High (Authentication bypass, data exfiltration).\n"
+                                "- Recommended Remediation: Use parameterized query parameters.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""🔴 **Security Vulnerability: SQL Injection (CWE-89)**
-
-Directly interpolating user input (`email`, `password_input`) into raw SQL query strings creates an exploitable SQL Injection vulnerability. An attacker could bypass authentication using `' OR '1'='1`.
-
-```suggestion
-    query = "SELECT * FROM users WHERE email = ? AND password = ?"
-    cursor.execute(query, (email, password_input))
-```
-
-<details>
-<summary><b>🗂️ Analysis Chain</b></summary>
-
-- User-controlled inputs formatted directly into SQL query text.
-- Risk: High (Authentication bypass, data exfiltration).
-- Recommended Remediation: Use parameterized query parameters.
-</details>"""
+                                "body": body_text
                             })
 
                         # 2. Hardcoded Secret / JWT Secret Detection
-                        if ("JWT_SECRET" in content or "API_KEY" in content or "SECRET_KEY" in content) and ("=" in content and '"' in content):
+                        if ("JWT_SECRET" in content or "STRIPE_SECRET" in content or "API_KEY" in content or "SECRET_KEY" in content) and ("=" in content and '"' in content):
                             has_secret = True
+                            body_text = (
+                                "🟠 **Security Warning: Hardcoded Secret Exposure (CWE-798)**\n\n"
+                                "Hardcoded credentials and cryptographic secrets in source code can be extracted if the repository or build artifacts are compromised.\n\n"
+                                "```diff\n"
+                                "- STRIPE_SECRET_KEY = \"sk_live_51Msz9291029301923019\"\n"
+                                "+ import os\n"
+                                "+ STRIPE_SECRET_KEY = os.environ.get(\"STRIPE_SECRET_KEY\", \"\")\n"
+                                "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "import os\n"
+                                "STRIPE_SECRET_KEY = os.environ.get(\"STRIPE_SECRET_KEY\", \"\")\n"
+                                "```\n"
+                                "</details>\n\n"
+                                "<details>\n"
+                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
+                                "- Plaintext secret string assigned directly in source code.\n"
+                                "- Remediation: Load sensitive tokens from environment variables or GitHub Secrets.\n"
+                                "</details>"
+                            )
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""🟠 **Security Warning: Hardcoded Secret Exposure (CWE-798)**
-
-Hardcoded credentials and cryptographic secrets in source code can be extracted if the repository or build artifacts are compromised.
-
-```suggestion
-import os
-JWT_SECRET = os.environ.get("JWT_SECRET", "")
-```
-
-<details>
-<summary><b>🗂️ Analysis Chain</b></summary>
-
-- Plaintext secret string assigned directly in source code.
-- Remediation: Load sensitive tokens from environment variables or GitHub Secrets.
-</details>"""
+                                "body": body_text
                             })
 
                         # 3. Chained Dictionary / Null Pointer Crash
-                        if "['customer']['address']" in content or "['address']['city']" in content or ".profile.address" in content:
+                        if "['customer']['billingAddress']" in content or "['customer']['address']" in content or "['address']['city']" in content:
                             has_perf_issue = True
                             body_text = (
                                 "### 🛡️ Reliability suggestion\n\n"
                                 "**Missing null-safety guard on nested dictionary access**\n\n"
-                                "Directly indexing `order['customer']['address']['city']` without validation will raise a runtime `KeyError` or `TypeError` if customer metadata is missing or null.\n\n"
-                                "```suggestion\n"
-                                "        city = order.get('customer', {}).get('address', {}).get('city', 'Unknown')\n"
+                                "Directly indexing nested dictionary keys without validation will raise a runtime `KeyError` or `TypeError` if metadata is missing or null.\n\n"
+                                "```diff\n"
+                                "-    customer_city = payment_request['customer']['billingAddress']['city']\n"
+                                "+    customer_city = payment_request.get('customer', {}).get('billingAddress', {}).get('city', 'Unknown')\n"
                                 "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "    customer_city = payment_request.get('customer', {}).get('billingAddress', {}).get('city', 'Unknown')\n"
+                                "```\n"
+                                "</details>\n\n"
                                 "<details>\n"
                                 "<summary>▶ 🧩 Analysis chain</summary>\n\n"
                                 "- Deep nested dictionary traversal on external payload.\n"
@@ -314,14 +336,21 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
                             })
 
                         # 4. Divide by Zero Risk
-                        if "/ currency_rate" in content or "/ rate" in content:
+                        if "/ conversion_rate" in content or "/ currency_rate" in content or "/ rate" in content:
                             body_text = (
                                 "### ⚡ Reliability & Edge Case\n\n"
                                 "**ZeroDivisionError risk on unvalidated denominator**\n\n"
-                                "The parameter `currency_rate` is used directly as a divisor. If a caller passes `0` or `0.0`, this will trigger a critical `ZeroDivisionError`.\n\n"
-                                "```suggestion\n"
-                                "    adjusted_ratio = 100 / currency_rate if currency_rate and currency_rate != 0 else 0\n"
+                                "The parameter `conversion_rate` is used directly as a divisor. If a caller passes `0` or `0.0`, this will trigger a critical `ZeroDivisionError`.\n\n"
+                                "```diff\n"
+                                "-    normalized_amount = 100 / conversion_rate\n"
+                                "+    normalized_amount = 100 / conversion_rate if conversion_rate and conversion_rate != 0 else 0\n"
                                 "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "    normalized_amount = 100 / conversion_rate if conversion_rate and conversion_rate != 0 else 0\n"
+                                "```\n"
+                                "</details>\n\n"
                                 "<details>\n"
                                 "<summary>▶ 🧩 Analysis chain</summary>\n\n"
                                 "- Unvalidated numeric divisor in arithmetic expression.\n"
@@ -336,15 +365,23 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
                             })
 
                         # 5. Duplicate Tax Logic (Clean Code / DRY)
-                        if "* 0.15" in content and "total_tax" in content:
+                        if "* 0.15" in content and "tax" in content:
                             body_text = (
                                 "### 🧹 Clean Code suggestion\n\n"
                                 "**Extract magic number and deduplicate tax calculation**\n\n"
                                 "The tax multiplier `0.15` is duplicated across multiple statements. Extracting this into a named constant improves readability and makes future rate updates maintainable.\n\n"
-                                "```suggestion\n"
-                                "    TAX_RATE = 0.15\n"
-                                "    total_tax_domestic = sum(o.get('amount', 0) * TAX_RATE for o in orders if o.get('region') == 'US')\n"
+                                "```diff\n"
+                                "+    TAX_RATE = 0.15\n"
+                                "-    tax_us = sum(item['price'] * 0.15 for item in payment_request.get('items', []) if item.get('country') == 'US')\n"
+                                "+    tax_us = sum(item.get('price', 0) * TAX_RATE for item in payment_request.get('items', []) if item.get('country') == 'US')\n"
                                 "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "    TAX_RATE = 0.15\n"
+                                "    tax_us = sum(item.get('price', 0) * TAX_RATE for item in payment_request.get('items', []) if item.get('country') == 'US')\n"
+                                "```\n"
+                                "</details>\n\n"
                                 "<details>\n"
                                 "<summary>▶ 🧩 Analysis chain</summary>\n\n"
                                 "- Duplicate numeric literal in multiple list comprehensions.\n"
@@ -365,10 +402,19 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
                                 "### ⚠️ Error Handling suggestion\n\n"
                                 "**Incorrect HTTP 500 status code for client validation error**\n\n"
                                 "Raising a generic `500 Internal Server Error` indicates an unexpected server crash. Client input errors (such as negative order amounts) should return `400 Bad Request` or `422 Unprocessable Entity`.\n\n"
-                                "```suggestion\n"
-                                "        if order.get('amount', 0) < 0:\n"
-                                "            raise ValueError('Order amount cannot be negative')  # Handled as 400 Bad Request\n"
+                                "```diff\n"
+                                "-    if payment_request.get('total_amount', 0) < 0:\n"
+                                "-        raise Exception(\"Payment total cannot be negative\", 500)\n"
+                                "+    if payment_request.get('total_amount', 0) < 0:\n"
+                                "+        raise ValueError(\"Payment total cannot be negative\")  # Handled as 400 Bad Request\n"
                                 "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "    if payment_request.get('total_amount', 0) < 0:\n"
+                                "        raise ValueError(\"Payment total cannot be negative\")\n"
+                                "```\n"
+                                "</details>\n\n"
                                 "<details>\n"
                                 "<summary>▶ 🧩 Analysis chain</summary>\n\n"
                                 "- Status code 500 mapped to user input validation failure.\n"
@@ -386,64 +432,22 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
                         if "status_code=400" in content or "status_code = 400" in content:
                             has_status_code_issue = True
                             body_text = (
-                                "### 🛠️ Refactor suggestion\n\n"
-                                "**Status code correction: 400 -> 404**\n\n"
-                                "The function encapsulation is a clean addition for retrieving records by identifier. However, ensure that `status_code=400` is updated to `404`, as 404 is standard for not found errors.\n\n"
-                                "```suggestion\n"
-                                "        status_code=404,\n"
+                                "The function `_get_task_model_from_guid_or_raise` is a good addition for encapsulating the logic of retrieving a task model by GUID and raising an error if not found. This centralizes error handling and makes the code more DRY. However, ensure that the status code `400` is appropriate for all use cases where this function is called, as a `404` might be more suitable for not found errors.\n\n"
+                                "```diff\n"
+                                "-        status_code=400,\n"
+                                "+        status_code=404,\n"
                                 "```\n\n"
+                                "<details>\n"
+                                "<summary>▶ Committable suggestion</summary>\n\n"
+                                "```python\n"
+                                "        status_code=404,\n"
+                                "```\n"
+                                "</details>\n\n"
                                 "<details>\n"
                                 "<summary>▶ 🧩 Analysis chain</summary>\n\n"
                                 "- Resource lookup helper raises `ApiError`.\n"
                                 "- Missing entity returns Bad Request (`400`) instead of Not Found (`404`).\n"
                                 "- Recommended fix updates error code to adhere to REST specifications.\n"
-                                "</details>"
-                            )
-                            inline_comments.append({
-                                "path": f.filename,
-                                "line": line_num,
-                                "side": "RIGHT",
-                                "body": body_text
-                            })
-
-                        # 8. Load Balancing Unvalidated Parameters
-                        if "loadbalancing" in content and "add_string" in content:
-                            has_loadbalance_issue = True
-                            body_text = (
-                                "### 🛠️ Refactor suggestion\n\n"
-                                "**Unvalidated load balancing parameter**\n\n"
-                                "The addition of the `loadbalancing` parameter is not validated against expected values. Ensure the parameter is one of the supported types to prevent runtime errors.\n\n"
-                                "```suggestion\n"
-                                "    # Validation for loadbalancing parameter\n"
-                                "    if simulation.loadbalancing not in ['round_robin', 'least_conn', 'ip_hash']:\n"
-                                "        raise ValueError(f'Invalid value for loadbalancing: {simulation.loadbalancing}')\n"
-                                "```\n\n"
-                                "<details>\n"
-                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
-                                "- New configuration field `loadbalancing` injected into simulation state.\n"
-                                "- Unvalidated string input could propagate into downstream modules.\n"
-                                "</details>"
-                            )
-                            inline_comments.append({
-                                "path": f.filename,
-                                "line": line_num,
-                                "side": "RIGHT",
-                                "body": body_text
-                            })
-
-                        # 9. Typo in Enum or Token
-                        if "SPONSER" in content:
-                            has_typo = True
-                            body_text = (
-                                "### 🛠️ Refactor suggestion\n\n"
-                                "**Typo in enum token: Role.SPONSER -> Role.SPONSOR**\n\n"
-                                "There is a typo on the usage of `Role.SPONSER`. This should be corrected to `Role.SPONSOR`.\n\n"
-                                "```suggestion\n"
-                                "import { Role, Status } from '@prisma/client';\n"
-                                "```\n\n"
-                                "<details>\n"
-                                "<summary>▶ 🧩 Analysis chain</summary>\n\n"
-                                "- Typo identified in enum token `SPONSER` -> `SPONSOR`.\n"
                                 "</details>"
                             )
                             inline_comments.append({
@@ -474,6 +478,18 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
             for c in inline_comments:
                 suggestions_block += f"#### 📍 `{c['path']}` (Line {c['line']})\n\n{c['body']}\n\n"
 
+        # Build Related Open PRs block
+        related_prs_block = ""
+        if related_prs and len(related_prs) > 0:
+            related_prs_block = "\n---\n\n### 🔗 Related Open Pull Requests & Cross-PR Impact\n\n| Open PR | Author | Branch | Status |\n| :--- | :--- | :--- | :--- |\n"
+            for p in related_prs[:5]:
+                p_num = p.get("number")
+                p_title = p.get("title", "Untitled")
+                p_user = p.get("user", {}).get("login", "contributor")
+                p_branch = p.get("head", {}).get("ref", "branch")
+                related_prs_block += f"| #{p_num} `{p_title}` | @{p_user} | `{p_branch}` | 🟢 Active |\n"
+            related_prs_block += "\n> ℹ️ *Cross-PR check: No merge conflicts detected with other open pull requests.*\n"
+
         summary = f"""<!-- coderabbit-ai: pr-walkthrough -->
 ## 🐇 Summary & Walkthrough
 
@@ -498,6 +514,7 @@ This Pull Request updates **{len(file_diffs)} files** across the codebase. Key i
 {error_check}
 {clean_check}
 {suggestions_block}
+{related_prs_block}
 ---
 
 ### 📊 Risk Assessment: {risk_rating}

@@ -77,8 +77,16 @@ class ReviewEngine:
         file_diffs = DiffParser.parse_patch(raw_diff)
         print(f"🔍 Parsed {len(file_diffs)} changed files from PR diff.")
 
-        # 3. Generate Gemini AI Review
-        review_result = self.reviewer.generate_review(pr_meta=pr, file_diffs=file_diffs, full_patch=raw_diff)
+        # 3. Fetch other open PRs for cross-PR impact detection
+        other_prs = self.github.get_all_open_prs(pr_number) if pr_number else []
+
+        # 4. Generate Gemini AI Review
+        review_result = self.reviewer.generate_review(
+            pr_meta=pr,
+            file_diffs=file_diffs,
+            full_patch=raw_diff,
+            related_prs=other_prs
+        )
 
         summary_body = review_result.get("summary", "")
         inline_comments = review_result.get("inline_comments", [])
