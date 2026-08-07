@@ -42,7 +42,7 @@ class ReviewEngine:
 
         print(f"🚀 Received GitHub Event: '{event_name}'")
 
-        if event_name == "pull_request":
+        if event_name in ("pull_request", "pull_request_target"):
             self.handle_pull_request_event(event_data)
         elif event_name in ("issue_comment", "pull_request_review_comment"):
             self.handle_comment_event(event_data, is_review_comment=(event_name == "pull_request_review_comment"))
