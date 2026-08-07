@@ -35,6 +35,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
           fetch-depth: 0
 
+      - name: 🔄 Sync Latest Review Engine from Main
+        run: |
+          git checkout origin/main -- agent/ .ai-reviewer.yml || true
+
       - name: 🐍 Setup Python 3.11
         uses: actions/setup-python@v5
         with:
