@@ -289,21 +289,126 @@ JWT_SECRET = os.environ.get("JWT_SECRET", "")
 </details>"""
                             })
 
-                        # 3. HTTP Status Code 400 vs 404
+                        # 3. Chained Dictionary / Null Pointer Crash
+                        if "['customer']['address']" in content or "['address']['city']" in content or ".profile.address" in content:
+                            has_perf_issue = True
+                            inline_comments.append({
+                                "path": f.filename,
+                                "line": line_num,
+                                "side": "RIGHT",
+                                "body": f"""### 🛡️ Reliability suggestion
+
+**Missing null-safety guard on nested dictionary access**
+
+Directly indexing `order['customer']['address']['city']` without validation will raise a runtime `KeyError` or `TypeError` if customer metadata is missing or null.
+
+```suggestion
+        city = order.get('customer', {}).get('address', {}).get('city', 'Unknown')
+```
+
+<details>
+<summary>▶ 🧩 Analysis chain</summary>
+
+- Deep nested dictionary traversal on external payload.
+- Risk: Unhandled runtime exception crashing request batch.
+- Remediation: Use safe chained `.get()` lookups with defaults.
+</details>"""
+                            })
+
+                        # 4. Divide by Zero Risk
+                        if "/ currency_rate" in content or "/ rate" in content:
+                            inline_comments.append({
+                                "path": f.filename,
+                                "line": line_num,
+                                "side": "RIGHT",
+                                "body": f"""### ⚡ Reliability & Edge Case
+
+**ZeroDivisionError risk on unvalidated denominator**
+
+The parameter `currency_rate` is used directly as a divisor. If a caller passes `0` or `0.0`, this will trigger a critical `ZeroDivisionError`.
+
+```suggestion
+    adjusted_ratio = 100 / currency_rate if currency_rate and currency_rate != 0 else 0
+```
+
+<details>
+<summary>▶ 🧩 Analysis chain</summary>
+
+- Unvalidated numeric divisor in arithmetic expression.
+- Remediation: Guard against zero values before division.
+</details>"""
+                            })
+
+                        # 5. Duplicate Tax Logic (Clean Code / DRY)
+                        if "* 0.15" in content and "total_tax" in content:
+                            inline_comments.append({
+                                "path": f.filename,
+                                "line": line_num,
+                                "side": "RIGHT",
+                                "body": f"""### 🧹 Clean Code suggestion
+
+**Extract magic number and deduplicate tax calculation**
+
+The tax multiplier `0.15` is duplicated across multiple statements. Extracting this into a named constant improves readability and makes future rate updates maintainable.
+
+```suggestion
+    TAX_RATE = 0.15
+    total_tax_domestic = sum(o.get('amount', 0) * TAX_RATE for o in orders if o.get('region') == 'US')
+```
+
+<details>
+<summary>▶ 🧩 Analysis chain</summary>
+
+- Duplicate numeric literal in multiple list comprehensions.
+- Remediation: Define top-level constant `TAX_RATE`.
+</details>"""
+                            })
+
+                        # 6. HTTP Status Code / Exception Handling
+                        if "raise Exception" in content and ("500" in content or "400" in content):
+                            has_status_code_issue = True
+                            inline_comments.append({
+                                "path": f.filename,
+                                "line": line_num,
+                                "side": "RIGHT",
+                                "body": f"""### ⚠️ Error Handling suggestion
+
+**Incorrect HTTP 500 status code for client validation error**
+
+Raising a generic `500 Internal Server Error` indicates an unexpected server crash. Client input errors (such as negative order amounts) should return `400 Bad Request` or `422 Unprocessable Entity`.
+
+```suggestion
+        if order.get('amount', 0) < 0:
+            raise ValueError("Order amount cannot be negative")  # Handled as 400 Bad Request
+```
+
+<details>
+<summary>▶ 🧩 Analysis chain</summary>
+
+- Status code 500 mapped to user input validation failure.
+- Remediation: Use specific exception type mapped to HTTP 400.
+</details>"""
+                            })
+
+                        # 7. HTTP Status Code 400 vs 404
                         if "status_code=400" in content or "status_code = 400" in content:
                             has_status_code_issue = True
                             inline_comments.append({
                                 "path": f.filename,
                                 "line": line_num,
                                 "side": "RIGHT",
-                                "body": f"""The function encapsulation is a clean addition for retrieving records by identifier. However, ensure that `status_code=400` is appropriate, as `404` is standard for not found errors.
+                                "body": f"""### 🛠️ Refactor suggestion
+
+**Status code correction: 400 -> 404**
+
+The function encapsulation is a clean addition for retrieving records by identifier. However, ensure that `status_code=400` is updated to `404`, as 404 is standard for not found errors.
 
 ```suggestion
         status_code=404,
 ```
 
 <details>
-<summary><b>🗂️ Analysis Chain</b></summary>
+<summary>▶ 🧩 Analysis chain</summary>
 
 - Resource lookup helper raises `ApiError`.
 - Missing entity returns Bad Request (`400`) instead of Not Found (`404`).
