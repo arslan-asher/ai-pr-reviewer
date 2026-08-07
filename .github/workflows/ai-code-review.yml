@@ -1,7 +1,7 @@
 name: "🤖 AI Code Reviewer (CodeRabbit Alternative)"
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
   issue_comment:
     types: [created]
@@ -22,7 +22,7 @@ jobs:
   review:
     # Only run on PRs, or on comments that mention @ai-reviewer
     if: >
-      github.event_name == 'pull_request' ||
+      github.event_name == 'pull_request_target' ||
       (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@ai-reviewer')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@ai-reviewer'))
     
@@ -32,6 +32,7 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
           fetch-depth: 0
 
       - name: 🐍 Setup Python 3.11
